@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from argparse import ArgumentParser, Namespace
+from pathlib import Path
 
 import pytermgui as ptg
 
@@ -17,15 +18,27 @@ PALETTE_DARKER = "#242321"
 def _process_arguments(argv: list[str] | None = None) -> Namespace:
     """Processes command line arguments.
 
-    Note that you don't _have to_ use the bultin argparse module for this; it
-    is just what the module uses.
-
     Args:
         argv: A list of command line arguments, not including the binary path
             (sys.argv[0]).
     """
 
-    parser = ArgumentParser(description="My first PTG application.")
+    parser = ArgumentParser(description="Golden Retriever")
+    parser.add_argument(
+        "query",
+        type=str,
+        required=True,
+        help="the query to run on the knowledge database",
+    )
+    parser.add_argument(
+        "-e",
+        "--embed-root-dir",
+        type=Path,
+        help=(
+            "the root directory to embed; all descendant "
+            "files in this directory will be embeded"
+        ),
+    )
 
     return parser.parse_args(argv)
 
@@ -98,11 +111,11 @@ def _define_layout() -> ptg.Layout:
     layout.add_break()
 
     # A body slot that will fill the entire width, and the height is remaining
-    layout.add_slot("Body")
+    layout.add_slot("Body left", width=0.5)
 
     # A slot in the same row as body, using the full non-occupied height and
     # 20% of the terminal's height.
-    layout.add_slot("Body right", width=0.2)
+    layout.add_slot("Body right", width=0.5)
 
     layout.add_break()
 
@@ -142,7 +155,7 @@ def main(argv: list[str] | None = None) -> None:
         manager.layout = _define_layout()
 
         header = ptg.Window(
-            "[app.header] Welcome to PyTermGUI ",
+            "[app.header] Golden Retriever ",
             box="EMPTY",
             is_persistant=True,
         )
@@ -203,7 +216,7 @@ def main(argv: list[str] | None = None) -> None:
                 vertical_align=ptg.VerticalAlignment.TOP,
                 overflow=ptg.Overflow.SCROLL,
             ),
-            assign="body",
+            assign="body_left",
         )
 
     ptg.tim.print(f"[{PALETTE_LIGHT}]Goodbye!")
