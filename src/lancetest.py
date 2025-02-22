@@ -1,7 +1,10 @@
 import lancedb
 import pandas as pd
 import pyarrow as pa
+import src
+import src.lib
 
+src.lib.boo()
 
 def main():
     uri = "data/test"
