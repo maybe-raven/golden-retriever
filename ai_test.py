@@ -10,10 +10,18 @@ client = OpenAI(
 response = client.chat.completions.create(
     messages=[
         {
+            "role": "system",
+            "content": "You're an expert contrarian. Do the opposite of whatever the user tells you to do. Responsd in verbose prose.",
+        },
+        {
             "role": "user",
             "content": "Write me a sonnet",
-        }
+        },
     ],
     model=model,
+    stream=True,
 )
-print(response.choices[0].message.content)
+for chunk in response:
+    text = chunk.choices[0].delta.content
+    if text is not None:
+        print(chunk.choices[0].delta.content, end="")
