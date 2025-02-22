@@ -2,6 +2,7 @@ import os
 import lancedb
 from lancedb.embeddings import get_registry
 from lancedb.pydantic import LanceModel, Vector
+from pydantic import FilePath, Field
 
 # connect to LanceDB
 db = lancedb.connect("~/.golden-retriever/lancedb")
@@ -13,6 +14,9 @@ embeddings = get_registry().get("openai").create()
 
 
 class Documents(LanceModel):
+    hash: int
+    path: str
+    offset: int
     text: str = embeddings.SourceField()
     vector: Vector(1024) = embeddings.VectorField()
 
