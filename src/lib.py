@@ -1,7 +1,6 @@
 import os
 
 import lancedb
-import openai
 from lancedb.embeddings import get_registry
 from lancedb.pydantic import LanceModel, Vector
 from lancedb.rerankers import RRFReranker
