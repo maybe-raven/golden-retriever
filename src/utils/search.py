@@ -1,7 +1,7 @@
 import os
 import lancedb
 from lancedb.embeddings import get_registry
-from lancedb.rerankers import RRFReranker
+from lancedb.rerankers import CrossEncoderReranker
 
 # connect to LanceDB
 db = lancedb.connect("~/.golden-retriever/lancedb")
@@ -13,7 +13,7 @@ embeddings = get_registry().get("openai").create()
 
 table = db.open_table("documents")
 # you can use table.list_indices() to make sure indices have been created
-reranker = RRFReranker()
+reranker = CrossEncoderReranker()
 results = (
     table.search(
         "flower moon",
