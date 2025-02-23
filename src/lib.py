@@ -101,7 +101,7 @@ from openai import OpenAI
 class GenAiModel:
     
     def __init__(self):
-        self.model = os.environ.get("GR_MODEL", "mistral-nemo-instruct-2407")
+        self.model = os.environ.get("GR_MODEL", "deepseek-r1-distill-qwen-7b")
 
         self.client = OpenAI(
             base_url=os.environ.get("OPENAI_BASE_URL", "http://127.0.0.1:1234/v1"),
@@ -110,23 +110,20 @@ class GenAiModel:
         pass
         
 
-    def generateResponse(self, text:str):
+    def generateResponse(self, text:str) -> str:
         response = self.client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
-                    "content": "You're an expert contrarian. Do the opposite of whatever the user tells you to do. Responsd in verbose prose.",
+                    "content": "You're helping me get information, specifically from a text that I will give you",
                 },
                 {
                     "role": "user",
-                    "content": "Write me a sonnet",
+                    "content": text,
                 },
             ],
             model=self.model,
-            stream=True,
+            # stream=Fal,
         )
-        for chunk in response:
-            text = chunk.choices[0].delta.content
-            if text is not None:
-                print(chunk.choices[0].delta.content, end="")
+        return response.choices[0].message.content
                 

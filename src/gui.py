@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> None:
     """Runs the application."""
     args = _process_arguments(argv)
     db = DBHandler()
-    # genai = GenAiModel()
+    genai = GenAiModel()
     
     if args.embed_root_dir is not None:
         db.embed_recursive(args.embed_root_dir)
@@ -84,23 +84,22 @@ def main(argv: list[str] | None = None) -> None:
                 enable_events=True,
                 bind_return_key=True,
                 select_mode=sg.TABLE_SELECT_MODE_BROWSE,
-                key='-list row select')
+                key='list row select')
     
     selectedListText = sg.Multiline(default_text=selectedText, size=(None, 50))
     
-    useFileBtn = sg.Button(button_text="use this file", key="-use file")
-    
-    # searchListTable.get_last_clicked_position()
+    useFileBtn = sg.Button(button_text="use this file", key="use file")
     
     searchLayout = [  [searchListTable,
                 selectedListText, useFileBtn]
         ]
     
     chatMultiline = sg.Multiline(size=(1, 50))
-    chatInput = sg.Input(key='-user input')
+    chatInput = sg.Input()
+    chatInputBtn = sg.Button('submit input', key='-user input')
     chatSelectFileBtn = sg.Button("select file", key='-open search')
     
-    chatLayout = [  [chatMultiline], [chatInput], [chatSelectFileBtn]
+    chatLayout = [  [chatMultiline], [chatInput], [chatInputBtn], [chatSelectFileBtn]
         ]
 
     # Create the Window
@@ -108,27 +107,39 @@ def main(argv: list[str] | None = None) -> None:
     # window = sg.Window('Window Title', searchLayout)
 
     # Event Loop to process "events" and get the "values" of the inputs
+    window = chatWindow
     while True:
-        event, values = chatWindow.read()
+        event, values = window.read()
         if event == sg.WIN_CLOSED or event == 'Cancel': # if user closes window or clicks cancel
             break
         
         if event == '-user input':
-            print(values)
+            userin = chatInput.get()
+            aiout = genai.generateResponse(userin)
+            chatMultiline.update(aiout)
+            
+            print(userin)
         
         if event == '-open search':
             searchWindow = sg.Window('Window Title', searchLayout)
+            window = searchWindow
         
-        if searchWindow:
-            event, values = searchWindow.read()
-            if event == '-list row select':
-                row = searchListTable.SelectedRows[0]
-                with open(str(results["path"][row]), "r", encoding="utf-8") as f:
-                    selectedText = f.read()
-                selectedListText.update(value=selectedText)
-            
-            if event == '-use file':
-                searchWindow.close()
+        if event == 'list row select':
+            row = searchListTable.SelectedRows[0]
+            print(row, str(results["path"][row]))
+            with open(str(results["path"][row]), "r", encoding="utf-8") as f:
+                selectedText = f.read()
+            selectedChunk = results["text"][row]
+            selectedListText.update(value=selectedText)
+        
+        if event == 'use file':
+            print('use file')
+
+            res = genai.generateResponse(selectedChunk)
+            print(res)
+            window = chatWindow
+
+           
             
 
     chatWindow.close()
