@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from lib import embed_recursive, search_database
+from lib import DBHandler
 from threading import Thread
 
 import pytermgui as ptg
@@ -125,6 +126,7 @@ def _define_layout() -> ptg.Layout:
 
     return layout
 
+
 def list_files_and_chunks(root_dir):
     """Generates a directory tree with chunks"""
     tree = []
@@ -134,12 +136,13 @@ def list_files_and_chunks(root_dir):
                 file_path = os.path.join(dirpath, file)
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
-                    chunks = [content[i:i+100] for i in range(0, len(content), 100)]
+                    chunks = [content[i : i + 100] for i in range(0, len(content), 100)]
                 file_node = [f"[blue]{file}[/]"]
                 for i, chunk in enumerate(chunks):
-                    file_node.append(f"  └ Chunk {i+1}: {chunk[:50]}...")
+                    file_node.append(f"  └ Chunk {i + 1}: {chunk[:50]}...")
                 tree.append(file_node)
     return tree
+
 
 def _confirm_quit(manager: ptg.WindowManager) -> None:
     """Creates an "Are you sure you want to quit" modal window"""
@@ -166,20 +169,18 @@ def main(argv: list[str] | None = None) -> None:
     _configure_widgets()
 
     args = _process_arguments(argv)
+    db = DBHandler()
     if args.embed_root_dir is not None:
-        embed_recursive(args.embed_root_dir)
-    results = search_database(args.query)
+        db.embed_recursive(args.embed_root_dir)
+    results = db.search(args.query)
+    print(type(results))
+    print(results["path"])
     print(results)
-    return
 
     with ptg.WindowManager() as manager:
         manager.layout = _define_layout()
-        # Two-Panel Layout
-        layout.add_slot("Left Panel", width=0.3)
-        layout.add_slot("Right Panel", width=0.7)
-        manager.layout = layout
+
         # Directory Tree and colors font for Left Panel
-        tree_structure = ptg.Tree("[bold blue]File Chunks Tree[/]")
 
         header = ptg.Window(
             "[app.header] Golden Retriever ",
@@ -207,42 +208,16 @@ def main(argv: list[str] | None = None) -> None:
             assign="body_right",
         )
 
+        wndw = ptg.Window(
+            "[app.title]Files",
+            "",
+            vertical_align=ptg.VerticalAlignment.TOP,
+            overflow=ptg.Overflow.SCROLL,
+        )
+        for p in set(results["path"]):
+            wndw += p
         manager.add(
-            ptg.Window(
-                "[app.title]Example widgets",
-                "",
-                ptg.Collapsible(
-                    "Some sliders",
-                    "",
-                    ptg.Container(
-                        ptg.Slider(),
-                        ptg.Slider(),
-                        ptg.Slider(),
-                        static_width=40,
-                    ),
-                ),
-                "",
-                ptg.Collapsible(
-                    "XTERM color picker",
-                    "",
-                    ptg.ColorPicker(),
-                ),
-                "",
-                ptg.Collapsible(
-                    "Some containers within a splitter",
-                    "",
-                    ptg.Container(
-                        ptg.Splitter(
-                            ptg.Container("One"),
-                            ptg.Container("Two"),
-                            ptg.Container("Three"),
-                        ),
-                        static_width=60,
-                    ),
-                ),
-                vertical_align=ptg.VerticalAlignment.TOP,
-                overflow=ptg.Overflow.SCROLL,
-            ),
+            wndw,
             assign="body_left",
         )
 
