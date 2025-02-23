@@ -173,9 +173,6 @@ def main(argv: list[str] | None = None) -> None:
     if args.embed_root_dir is not None:
         db.embed_recursive(args.embed_root_dir)
     results = db.search(args.query)
-    with open(str(results["path"][0]), "r", encoding="utf-8") as f:
-        text = f.read()
-        text = text.replace("[", "\\[")
     print(type(results))
     print(results["path"])
     print(results)
@@ -211,6 +208,25 @@ def main(argv: list[str] | None = None) -> None:
             assign="body_right",
         )
 
+        right_label = ptg.Label(
+            horizontal_align=ptg.HorizontalAlignment.LEFT,
+            parent_align=ptg.HorizontalAlignment.LEFT,
+        )
+        right_pane = ptg.Window(
+            right_label,
+            vertical_align=ptg.VerticalAlignment.TOP,
+            overflow=ptg.Overflow.SCROLL,
+        )
+
+        def update_right_pane(path):
+            print("udpated")
+            right_pane.set_title(os.path.basename(path))
+            with open(str(results["path"][0]), "r", encoding="utf-8") as f:
+                right_label.value = f.read()
+                right_label.value = right_label.value.replace("[", "\\[")
+
+        update_right_pane(str(results["path"][0]))
+
         wndw = ptg.Window(
             "[app.title]Files",
             "",
@@ -218,22 +234,18 @@ def main(argv: list[str] | None = None) -> None:
             overflow=ptg.Overflow.SCROLL,
         )
         for p in sorted(set(results["path"])):
-            wndw += ptg.Button(p, parent_align=ptg.HorizontalAlignment.LEFT)
+            wndw += ptg.Button(
+                p,
+                onclick=lambda *_: update_right_pane(p),
+                parent_align=ptg.HorizontalAlignment.LEFT,
+            )
         manager.add(
             wndw,
             assign="body_left",
         )
 
         manager.add(
-            ptg.Window(
-                ptg.Label(
-                    text,
-                    horizontal_align=ptg.HorizontalAlignment.LEFT,
-                    parent_align=ptg.HorizontalAlignment.LEFT,
-                ),
-                vertical_align=ptg.VerticalAlignment.TOP,
-                overflow=ptg.Overflow.SCROLL,
-            ),
+            right_pane,
             assign="body_right",
         )
 
