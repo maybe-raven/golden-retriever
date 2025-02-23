@@ -24,7 +24,7 @@ class Documents(LanceModel):
 class DBHandler:
     def __init__(self) -> None:
         self.db = lancedb.connect("~/.golden-retriever/lancedb")
-        self.table = self.db.create_table("documents", exist_ok=True)
+        self.table = self.db.create_table("documents", schema=Documents, exist_ok=True)
 
     # Function to generate overlapping chunks from text
     def generate_chunks(
