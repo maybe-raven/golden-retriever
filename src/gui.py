@@ -6,7 +6,7 @@ import os
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from lib import DBHandler
+from lib import DBHandler, GenAiModel
 from threading import Thread
 
 import tkinter
@@ -64,14 +64,15 @@ def list_files_and_chunks(root_dir):
 
 def main(argv: list[str] | None = None) -> None:
     """Runs the application."""
-
     args = _process_arguments(argv)
     db = DBHandler()
+    # genai = GenAiModel()
+    
     if args.embed_root_dir is not None:
         db.embed_recursive(args.embed_root_dir)
     results = db.search(args.query)
     with open(str(results["path"][0]), "r", encoding="utf-8") as f:
-        text = f.read()
+        selectedText = f.read()
 
     print(type(results))
     print(results.get(["path", "text"]))
@@ -83,32 +84,54 @@ def main(argv: list[str] | None = None) -> None:
                 enable_events=True,
                 bind_return_key=True,
                 select_mode=sg.TABLE_SELECT_MODE_BROWSE,
-                key='list row select')
+                key='-list row select')
     
-    selectedListText = sg.Multiline(default_text=text, size=(None, 20))
+    selectedListText = sg.Multiline(default_text=selectedText, size=(None, 50))
+    
+    useFileBtn = sg.Button(button_text="use this file", key="-use file")
     
     # searchListTable.get_last_clicked_position()
     
-    layout = [  [searchListTable,
-                selectedListText]
+    searchLayout = [  [searchListTable,
+                selectedListText, useFileBtn]
+        ]
+    
+    chatMultiline = sg.Multiline(size=(1, 50))
+    chatInput = sg.Input(key='-user input')
+    chatSelectFileBtn = sg.Button("select file", key='-open search')
+    
+    chatLayout = [  [chatMultiline], [chatInput], [chatSelectFileBtn]
         ]
 
     # Create the Window
-    window = sg.Window('Window Title', layout)
+    chatWindow = sg.Window('Window Title', chatLayout)
+    # window = sg.Window('Window Title', searchLayout)
 
     # Event Loop to process "events" and get the "values" of the inputs
     while True:
-        event, values = window.read()
+        event, values = chatWindow.read()
         if event == sg.WIN_CLOSED or event == 'Cancel': # if user closes window or clicks cancel
             break
+        
+        if event == '-user input':
+            print(values)
+        
+        if event == '-open search':
+            searchWindow = sg.Window('Window Title', searchLayout)
+        
+        if searchWindow:
+            event, values = searchWindow.read()
+            if event == '-list row select':
+                row = searchListTable.SelectedRows[0]
+                with open(str(results["path"][row]), "r", encoding="utf-8") as f:
+                    selectedText = f.read()
+                selectedListText.update(value=selectedText)
             
-        if event == 'list row select':
-            row = searchListTable.SelectedRows[0]
-            with open(str(results["path"][row]), "r", encoding="utf-8") as f:
-                text = f.read()
-            selectedListText.update(value=text)
+            if event == '-use file':
+                searchWindow.close()
+            
 
-    window.close()
+    chatWindow.close()
 
 
 if __name__ == "__main__":
