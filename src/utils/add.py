@@ -68,7 +68,7 @@ def process_files(root_dir: str):
 
 # Process files and insert into the table
 data = process_files(".")
-table = db.open_table("documents")
+table = db.open_table("myTable")
 table.add(data=data)
 table.create_index(metric="L2", vector_column_name="vector", index_type="IVF_FLAT")
 table.create_fts_index("text", replace=True)

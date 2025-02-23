@@ -1,8 +1,6 @@
 import os
-
 import lancedb
 from lancedb.embeddings import get_registry
-from lancedb.pydantic import LanceModel, Vector
 from lancedb.rerankers import RRFReranker
 
 # connect to LanceDB
@@ -13,24 +11,7 @@ os.environ.setdefault("OPENAI_API_KEY", "...")
 os.environ.setdefault("OPENAI_BASE_URL", "http://127.0.0.1:1234/v1")
 embeddings = get_registry().get("openai").create()
 
-
-class Documents(LanceModel):
-    text: str = embeddings.SourceField()
-    vector: Vector(1024) = embeddings.VectorField()
-
-
-table_name = "myTable"
-table = db.create_table(table_name, schema=Documents, mode="overwrite")
-data = [
-    {"text": "rebel spaceships striking from a hidden base"},
-    {"text": "have won their first victory against the evil Galactic Empire"},
-    {"text": "during the battle rebel spies managed to steal secret plans"},
-    {"text": "to the Empire's ultimate weapon the Death Star"},
-]
-table.add(data=data)
-table.create_index(metric="L2", vector_column_name="vector", index_type="IVF_FLAT")
-table.create_fts_index("text", replace=True)
-
+table = db.open_table("documents")
 # you can use table.list_indices() to make sure indices have been created
 reranker = RRFReranker()
 results = (
