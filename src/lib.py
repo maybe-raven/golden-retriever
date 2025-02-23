@@ -1,14 +1,11 @@
 import os
+import lancedb
+from lancedb.pydantic import LanceModel, Vector
+from lancedb.embeddings import get_registry
+from lancedb.rerankers import CrossEncoderReranker
+from pydantic import ValidationError
 from typing import List, Tuple
 
-import lancedb
-from lancedb.embeddings import get_registry
-from lancedb.pydantic import LanceModel, Vector
-from lancedb.rerankers import RRFReranker
-from pydantic import ValidationError
-
-# connect to LanceDB
-db = lancedb.connect("~/.golden-retriever/lancedb")
 
 # Configuring the environment variable OPENAI_API_KEY
 os.environ.setdefault("OPENAI_API_KEY", "...")
@@ -17,29 +14,22 @@ embeddings = get_registry().get("openai").create()
 
 
 class Documents(LanceModel):
+    hash: int
+    path: str
+    offset: int
     text: str = embeddings.SourceField()
     vector: Vector(1024) = embeddings.VectorField(default=None)
 
-class Dbhandler:
-    def __init__(self):
-        self.docs = Documents
-        
-        table_name = "myTable"
-        table = db.create_table(table_name, schema=Documents, mode="overwrite")
-        data = [
-            {"text": "rebel spaceships striking from a hidden base"},
-            {"text": "have won their first victory against the evil Galactic Empire"},
-            {"text": "during the battle rebel spies managed to steal secret plans"},
-            {"text": "to the Empire's ultimate weapon the Death Star"},
-        ]
-        table.add(data=data)
-        table.create_index(metric="L2", vector_column_name="vector", index_type="IVF_FLAT")
-        table.create_fts_index("text", replace=True)
-        self.table = table
 
-        return
-    
-    def generate_chunks(self, text: str, chunk_size: int = 1000, overlap: int = 100) -> List[Tuple[int, str]]:
+class DBHandler:
+    def __init__(self) -> None:
+        self.db = lancedb.connect("~/.golden-retriever/lancedb")
+        self.table = self.db.create_table("documents", exist_ok=True)
+
+    # Function to generate overlapping chunks from text
+    def generate_chunks(
+        self, text: str, chunk_size: int = 1000, overlap: int = 100
+    ) -> List[Tuple[int, str]]:
         chunks = []
         start = 0
         text_length = len(text)
@@ -50,7 +40,7 @@ class Dbhandler:
                 break
             start += chunk_size - overlap
         return chunks
-    
+
     # Function to recursively traverse directories and process files
     def process_files(self, root_dir: str):
         documents = []
@@ -67,7 +57,10 @@ class Dbhandler:
                         documents.extend(
                             [
                                 Documents(
-                                    hash=doc_hash, path=file_path, offset=offset, text=text
+                                    hash=doc_hash,
+                                    path=file_path,
+                                    offset=offset,
+                                    text=text,
                                 )
                                 for (offset, text) in chunks
                             ]
@@ -78,21 +71,20 @@ class Dbhandler:
                     print(f"Error processing {file_path}: {e}")
         return documents
 
-    def addData(self, dir:str):
-        data = self.process_files(dir)
-        if not data:
-            print("no .txt or .md files found")
-            return
+    # Process files and insert into the table
+    def embed_recursive(self, root_dir: str):
+        data = self.process_files(root_dir)
         self.table.add(data=data)
-        self.table.create_index(metric="L2", vector_column_name="vector", index_type="IVF_FLAT")
+        self.table.create_index(
+            metric="L2", vector_column_name="vector", index_type="IVF_FLAT"
+        )
         self.table.create_fts_index("text", replace=True)
-        
-    def search(self, searchTerm:str):
-        # you can use table.list_indices() to make sure indices have been created
-        reranker = RRFReranker()
-        results = (
+
+    def search(self, query: str):
+        reranker = CrossEncoderReranker()
+        return (
             self.table.search(
-                searchTerm,
+                query,
                 query_type="hybrid",
                 vector_column_name="vector",
                 fts_columns="text",
@@ -101,11 +93,3 @@ class Dbhandler:
             .limit(10)
             .to_pandas()
         )
-        print(results)
-        return results
-
-    
-    
-
-
-
