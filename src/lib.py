@@ -5,6 +5,7 @@ from lancedb.embeddings import get_registry
 from lancedb.rerankers import CrossEncoderReranker
 from pydantic import ValidationError
 from typing import List, Tuple
+from pandas import DataFrame
 
 
 # Configuring the environment variable OPENAI_API_KEY
@@ -80,7 +81,7 @@ class DBHandler:
         )
         self.table.create_fts_index("text", replace=True)
 
-    def search(self, query: str):
+    def search(self, query: str) -> DataFrame:
         reranker = CrossEncoderReranker()
         return (
             self.table.search(
