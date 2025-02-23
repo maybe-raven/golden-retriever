@@ -6,6 +6,7 @@ import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from lib import embed_recursive, search_database
+from threading import Thread
 
 import pytermgui as ptg
 
