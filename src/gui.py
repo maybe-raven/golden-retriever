@@ -125,6 +125,21 @@ def _define_layout() -> ptg.Layout:
 
     return layout
 
+def list_files_and_chunks(root_dir):
+    """Generates a directory tree with chunks"""
+    tree = []
+    for dirpath, _, files in os.walk(root_dir):
+        for file in files:
+            if file.endswith((".md", ".txt")):
+                file_path = os.path.join(dirpath, file)
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    chunks = [content[i:i+100] for i in range(0, len(content), 100)]
+                file_node = [f"[blue]{file}[/]"]
+                for i, chunk in enumerate(chunks):
+                    file_node.append(f"  └ Chunk {i+1}: {chunk[:50]}...")
+                tree.append(file_node)
+    return tree
 
 def _confirm_quit(manager: ptg.WindowManager) -> None:
     """Creates an "Are you sure you want to quit" modal window"""
