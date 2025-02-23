@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
+from lib import embed_recursive, search_database
 
 import pytermgui as ptg
 
@@ -27,7 +28,6 @@ def _process_arguments(argv: list[str] | None = None) -> Namespace:
     parser.add_argument(
         "query",
         type=str,
-        required=True,
         help="the query to run on the knowledge database",
     )
     parser.add_argument(
@@ -150,6 +150,11 @@ def main(argv: list[str] | None = None) -> None:
     _configure_widgets()
 
     args = _process_arguments(argv)
+    if args.embed_root_dir is not None:
+        embed_recursive(args.embed_root_dir)
+    results = search_database(args.query)
+    print(results)
+    return
 
     with ptg.WindowManager() as manager:
         manager.layout = _define_layout()
