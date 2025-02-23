@@ -70,8 +70,6 @@ def main(argv: list[str] | None = None) -> None:
     if args.embed_root_dir is not None:
         db.embed_recursive(args.embed_root_dir)
     results = db.search(args.query)
-    with open(str(results["path"][0]), "r", encoding="utf-8") as f:
-        text = f.read()
     print(type(results))
     print(results.get(["path", "text"]))
     paththing = results.get(["path", "text"]).values.tolist()
