@@ -178,6 +178,8 @@ def main(argv: list[str] | None = None) -> None:
         layout.add_slot("Left Panel", width=0.3)
         layout.add_slot("Right Panel", width=0.7)
         manager.layout = layout
+        # Directory Tree and colors font for Left Panel
+        tree_structure = ptg.Tree("[bold blue]File Chunks Tree[/]")
 
         header = ptg.Window(
             "[app.header] Golden Retriever ",
