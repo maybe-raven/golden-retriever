@@ -174,6 +174,10 @@ def main(argv: list[str] | None = None) -> None:
 
     with ptg.WindowManager() as manager:
         manager.layout = _define_layout()
+        # Two-Panel Layout
+        layout.add_slot("Left Panel", width=0.3)
+        layout.add_slot("Right Panel", width=0.7)
+        manager.layout = layout
 
         header = ptg.Window(
             "[app.header] Golden Retriever ",
