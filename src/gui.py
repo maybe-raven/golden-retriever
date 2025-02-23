@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> None:
                 selectedListText, useFileBtn]
         ]
     
-    chatMultiline = sg.Multiline(size=(1, 50))
+    chatMultiline = sg.Multiline(default_text="", size=(None, 50))
     chatInput = sg.Input()
     chatInputBtn = sg.Button('submit input', key='-user input')
     chatSelectFileBtn = sg.Button("select file", key='-open search')
@@ -116,8 +116,7 @@ def main(argv: list[str] | None = None) -> None:
         if event == '-user input':
             userin = chatInput.get()
             aiout = genai.generateResponse(userin)
-            chatMultiline.update(aiout)
-            
+            chatMultiline.print(aiout)
             print(userin)
         
         if event == '-open search':
