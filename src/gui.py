@@ -175,6 +175,7 @@ def main(argv: list[str] | None = None) -> None:
     results = db.search(args.query)
     with open(str(results["path"][0]), "r", encoding="utf-8") as f:
         text = f.read()
+        text = text.replace("[", "\\[")
     print(type(results))
     print(results["path"])
     print(results)
