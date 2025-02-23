@@ -215,7 +215,7 @@ def main(argv: list[str] | None = None) -> None:
             overflow=ptg.Overflow.SCROLL,
         )
         for p in set(results["path"]):
-            wndw += p
+            wndw += ptg.Label(p, parent_align=ptg.HorizontalAlignment.LEFT)
         manager.add(
             wndw,
             assign="body_left",
