@@ -173,6 +173,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.embed_root_dir is not None:
         db.embed_recursive(args.embed_root_dir)
     results = db.search(args.query)
+    with open(str(results["path"][0]), "r", encoding="utf-8") as f:
+        text = f.read()
     print(type(results))
     print(results["path"])
     print(results)
@@ -220,6 +222,21 @@ def main(argv: list[str] | None = None) -> None:
             wndw,
             assign="body_left",
         )
+
+        manager.add(
+            ptg.Window(
+                ptg.Label(
+                    text,
+                    horizontal_align=ptg.HorizontalAlignment.LEFT,
+                    parent_align=ptg.HorizontalAlignment.LEFT,
+                ),
+                vertical_align=ptg.VerticalAlignment.TOP,
+                overflow=ptg.Overflow.SCROLL,
+            ),
+            assign="body_right",
+        )
+
+        manager.run()
 
     ptg.tim.print(f"[{PALETTE_LIGHT}]Goodbye!")
 
