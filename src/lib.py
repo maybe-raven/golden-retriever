@@ -1,12 +1,13 @@
 import os
-import lancedb
-from lancedb.pydantic import LanceModel, Vector
-from lancedb.embeddings import get_registry
-from lancedb.rerankers import CrossEncoderReranker
-from pydantic import ValidationError
 from typing import List, Tuple
-from pandas import DataFrame
 
+import lancedb
+from lancedb.embeddings import get_registry
+from lancedb.pydantic import LanceModel, Vector
+from lancedb.rerankers import CrossEncoderReranker
+from openai import OpenAI
+from pandas import DataFrame
+from pydantic import ValidationError
 
 # Configuring the environment variable OPENAI_API_KEY
 os.environ.setdefault("OPENAI_API_KEY", "...")
@@ -95,11 +96,8 @@ class DBHandler:
             .to_pandas()
         )
 
-import os
-from openai import OpenAI
 
 class GenAiModel:
-    
     def __init__(self):
         self.model = os.environ.get("GR_MODEL", "llama-3.2-1b-instruct")
 
@@ -108,9 +106,8 @@ class GenAiModel:
             api_key=os.environ.get("OPENAI_API_KEY", "..."),
         )
         pass
-        
 
-    def generateResponse(self, text:str) -> str:
+    def generateResponse(self, text: str) -> str:
         response = self.client.chat.completions.create(
             messages=[
                 {
@@ -126,4 +123,3 @@ class GenAiModel:
             # stream=Fal,
         )
         return response.choices[0].message.content
-                
