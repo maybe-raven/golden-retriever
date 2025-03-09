@@ -167,19 +167,46 @@ class ChunksView(RichLog):
                 return
 
     def find_line_numbers(self):
+        # FIXME: this is really slow on large files and causes a
+        # noticeable delay in input response.
+
+        # this is the number of lines to show before a chunk, so that
+        # when you hop to a chunk, it's not at the very top of the
+        # panel, instead there will be some number of lines before
+        # the chunk to provide some context.
+        SPACING = 8
+        # this is the number of empty lines a chunk can have within
+        # itself before it is considered two separate chunks.
+        EMPTY = 3
         self.hunk_line_numbers = []
         flag = False
+        empty_line_count = 0
         for i, line in enumerate(self.lines):
+            line_is_empty = True
             line_has_style = False
             for segment in line._segments:
+                if line_is_empty and not segment.text.isspace():
+                    line_is_empty = False
                 if segment.style:
                     line_has_style = True
                     break
+
+            if line_is_empty:
+                empty_line_count += 1
+            else:
+                empty_line_count = 0
+
+            should_break = not line_has_style and (
+                not line_is_empty or empty_line_count > EMPTY
+            )
+
             if line_has_style and not flag:
                 flag = True
-                self.hunk_line_numbers.append(0 if i <= 3 else i - 3)
-            elif not line_has_style and flag:
+                self.hunk_line_numbers.append(0 if i <= SPACING else i - SPACING)
+            elif should_break and flag:
                 flag = False
+
+        log(self.hunk_line_numbers)
 
 
 class RetrievalView(Widget):
