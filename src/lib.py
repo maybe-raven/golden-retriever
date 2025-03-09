@@ -1,4 +1,5 @@
 import os
+from hashlib import sha1
 from typing import List, Tuple
 
 import lancedb
@@ -16,7 +17,7 @@ embeddings = get_registry().get("openai").create()
 
 
 class Documents(LanceModel):
-    hash: int
+    hash: str
     path: str
     offset: int
     text: str = embeddings.SourceField()
@@ -53,8 +54,8 @@ class DBHandler:
                 file_path = os.path.join(dirpath, filename)
                 try:
                     with open(file_path, "r", encoding="utf-8") as file:
-                        content = file.read()
-                        doc_hash = hash(content)
+                        content = file.read().strip()
+                        doc_hash = hash_file(content)
                         chunks = self.generate_chunks(content)
                         documents.extend(
                             [
@@ -123,3 +124,8 @@ class GenAiModel:
             # stream=Fal,
         )
         return response.choices[0].message.content
+
+
+def hash_file(content: str) -> str:
+    hasher = sha1(content.encode(), usedforsecurity=False)
+    return hasher.hexdigest()
