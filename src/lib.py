@@ -1,11 +1,13 @@
 import os
 from hashlib import sha1
-from typing import List, Tuple
+from os import path
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 import lancedb
 from lancedb.embeddings import get_registry
+from lancedb.index import FTS
 from lancedb.pydantic import LanceModel, Vector
-from lancedb.rerankers import CrossEncoderReranker
 from openai import OpenAI
 from pandas import DataFrame
 from pydantic import ValidationError
@@ -25,9 +27,11 @@ class Documents(LanceModel):
 
 
 class DBHandler:
-    def __init__(self) -> None:
-        self.db = lancedb.connect("~/.golden-retriever/lancedb")
-        self.table = self.db.create_table("documents", schema=Documents, exist_ok=True)
+    async def connect(self):
+        self.db = await lancedb.connect_async("~/.golden-retriever/lancedb")
+        self.table = await self.db.create_table(
+            "documents", schema=Documents, exist_ok=True
+        )
 
     # Function to generate overlapping chunks from text
     def generate_chunks(
@@ -45,13 +49,13 @@ class DBHandler:
         return chunks
 
     # Function to recursively traverse directories and process files
-    def process_files(self, root_dir: str):
+    def process_files(self, root_dir: str | Path):
         documents = []
         for dirpath, _, files in os.walk(root_dir):
             for filename in files:
                 if not (filename.endswith(".md") or filename.endswith(".txt")):
                     continue
-                file_path = os.path.join(dirpath, filename)
+                file_path = path.abspath(path.join(dirpath, filename))
                 try:
                     with open(file_path, "r", encoding="utf-8") as file:
                         content = file.read().strip()
@@ -75,24 +79,21 @@ class DBHandler:
         return documents
 
     # Process files and insert into the table
-    def embed_recursive(self, root_dir: str):
+    async def embed_recursive(self, root_dir: str | Path):
         data = self.process_files(root_dir)
-        self.table.add(data=data)
-        self.table.create_index(
-            metric="L2", vector_column_name="vector", index_type="IVF_FLAT"
-        )
-        self.table.create_fts_index("text", replace=True)
+        await self.table.add(data=data)
+        await self.table.optimize()
+        await self.table.create_index("text", config=FTS(with_position=False))
 
-    def search(self, query: str) -> DataFrame:
-        reranker = CrossEncoderReranker()
-        return (
-            self.table.search(
-                query,
-                query_type="hybrid",
-                vector_column_name="vector",
-                fts_columns="text",
-            )
-            .rerank(reranker)
+    async def search(self, query: str) -> DataFrame:
+        vector_query = embeddings.compute_query_embeddings(query)[0]
+        return await (
+            self.table.query()
+            .nearest_to(vector_query)
+            .nearest_to_text(query, "text")
+            .rerank()
+            # .rerank(CrossEncoderReranker(trust_remote_code=False))
+            # WTF!!! ^^^this single line breaks Textual's input
             .limit(10)
             .to_pandas()
         )
@@ -108,7 +109,7 @@ class GenAiModel:
         )
         pass
 
-    def generateResponse(self, text: str) -> str:
+    def generateResponse(self, text: str) -> Optional[str]:
         response = self.client.chat.completions.create(
             messages=[
                 {

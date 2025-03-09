@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from pandas import DataFrame
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
@@ -199,7 +200,17 @@ class GRApp(App):
     CSS_PATH = "gui.tcss"
     BINDINGS = [("q", "quit", "Quit")]
 
-    def on_mount(self):
+    @work(exclusive=True)
+    async def do_search(self, query: str, embed_root_dir: Optional[Path]):
+        db = DBHandler()
+        await db.connect()
+
+        if embed_root_dir is not None:
+            await db.embed_recursive(embed_root_dir)
+        result = await db.search(query)
+        self.query_one(RetrievalView).data = result
+
+    async def on_mount(self):
         parser = ArgumentParser(description="Golden Retriever")
         parser.add_argument(
             "query",
@@ -216,12 +227,7 @@ class GRApp(App):
             ),
         )
         args = parser.parse_args(sys.argv[1:])
-
-        db = DBHandler()
-
-        if args.embed_root_dir is not None:
-            db.embed_recursive(args.embed_root_dir)
-        self.query_one(RetrievalView).data = db.search(args.query)
+        self.do_search(args.query, args.embed_root_dir)
 
     def compose(self) -> ComposeResult:
         yield Footer()
