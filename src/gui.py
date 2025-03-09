@@ -1,19 +1,18 @@
 import os
-import sys
-from argparse import ArgumentParser
 from enum import StrEnum
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Set, Tuple
 
 from pandas import DataFrame, Series
 from rich.text import Text
-from textual import log, work
+from textual import log, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Horizontal, Vertical
 from textual.content import Content, Span
 from textual.message import Message
 from textual.reactive import reactive
+from textual.screen import ModalScreen
 from textual.widget import Widget
 from textual.widgets import (
     Footer,
@@ -407,9 +406,32 @@ class CustomDirectoryTree(Tree[CDTDataType]):
         log(node=self.cursor_node, selection=self.selection)
 
 
+class QueryModal(ModalScreen[str]):
+    BINDINGS = [
+        Binding("escape", "app.pop_screen", "Cancel", key_display="esc"),
+        Binding("enter", "app.pop_screen", "Save"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            query_input = Input(placeholder="Enter your query...")
+            query_input.border_subtitle = (
+                r"\[[white]enter[/]] Save  \[[white]esc[/]] Cancel"
+            )
+            yield query_input
+
+    @on(Input.Submitted)
+    def close_screen(self, event: Input.Submitted) -> None:
+        self.dismiss(event.value)
+
+
 class GRApp(App):
     CSS_PATH = "gui.tcss"
-    BINDINGS = [("q", "quit", "Quit")]
+    BINDINGS = [
+        ("q", "quit", "Quit"),
+        ("ctrl+r", "retrieve", "Perform Retrieval"),
+        ("ctrl+t", "clear", "Clear Retrieval"),
+    ]
 
     db = DBHandler()
 
@@ -424,13 +446,12 @@ class GRApp(App):
         tree.embedding_in_progress = False
 
     @work(exclusive=True, group="search")
-    async def do_search(self, query: str, embed_root_dir: Optional[Path]):
+    async def do_search(self, query: str):
+        if not query:
+            return
+        self.set_focus(self.query_one(DocumentsListView))
         log("connecting to db for search")
         await self.db.connect()
-
-        if embed_root_dir is not None:
-            async for _ in self.db.embed_files(get_all_files(embed_root_dir)):
-                pass
         log("doing search..........")
         result = await self.db.search(query)
         log(result)
@@ -447,24 +468,7 @@ class GRApp(App):
         self.query_one(CustomDirectoryTree).build_tree(StagingData(paths, results))
 
     async def on_mount(self):
-        parser = ArgumentParser(description="Golden Retriever")
-        parser.add_argument(
-            "query",
-            type=str,
-            help="the query to run on the knowledge database",
-        )
-        parser.add_argument(
-            "-e",
-            "--embed-root-dir",
-            type=Path,
-            help=(
-                "the root directory to embed; all descendant "
-                "files in this directory will be embeded"
-            ),
-        )
-        args = parser.parse_args(sys.argv[1:])
         self.check_paths()
-        self.do_search(args.query, args.embed_root_dir)
 
         tabs_widget = self.query_one(Tabs)
         tabs_widget._bindings.bind("h", "previous_tab", "Previous tab")
@@ -474,6 +478,14 @@ class GRApp(App):
         self, event: CustomDirectoryTree.EmbedSelection
     ):
         self.embed(event.paths)
+
+    def action_clear(self):
+        self.data = DataFrame()
+        self.query_one(RetrievalView).data = None
+
+    def action_retrieve(self):
+        # pyright keeps complaining but it just works without problem???
+        self.push_screen(QueryModal(), callback=self.do_search)
 
     def compose(self) -> ComposeResult:
         yield Footer()
