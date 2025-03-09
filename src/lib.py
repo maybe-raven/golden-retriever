@@ -167,7 +167,7 @@ class DBHandler:
 
 class GenAiModel:
     def __init__(self):
-        self.model = os.environ.get("GR_MODEL", "llama-3.2-1b-instruct")
+        self.model = os.environ.get("GR_LLM_MODEL", "mistral-nemo-instruct-2407")
 
         self.client = AsyncOpenAI(
             base_url=os.environ.get("OPENAI_BASE_URL", "http://127.0.0.1:1234/v1"),
