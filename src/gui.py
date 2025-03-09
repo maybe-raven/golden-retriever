@@ -72,9 +72,6 @@ class DocumentsListView(ListView):
 class ChunksView(RichLog):
     """A widget to display chunks in its original text."""
 
-    chunks: reactive[DataFrame | None] = reactive(None, always_update=True)
-    """The chunks to display. All chunks are assumed to refer to the same file."""
-
     BINDINGS = [
         Binding("right", "next_hunk", "Next Hunk", show=False),
         Binding("left", "prev_hunk", "Previous Hunk", show=False),
@@ -111,7 +108,7 @@ class ChunksView(RichLog):
         )
         self.hunk_line_numbers = []
 
-    def watch_chunks(self, chunks: Optional[DataFrame]):
+    def update(self, chunks: Optional[DataFrame]):
         self.clear()
         if chunks is None:
             return
@@ -222,9 +219,8 @@ class RetrievalView(Widget):
             yield DocumentsListView(classes="column left")
             yield ChunksView(classes="column right")
 
-    def on_documents_list_view_path_selected(
-        self, event: DocumentsListView.PathSelected
-    ):
+    @on(DocumentsListView.PathSelected)
+    def update_document(self, event: DocumentsListView.PathSelected):
         if event.path is None or self.data is None:
             chunks = None
         else:
@@ -232,7 +228,7 @@ class RetrievalView(Widget):
             chunks = self.data[self.data["path"] == p]
             print(chunks)
         assert isinstance(chunks, Optional[DataFrame])
-        self.query_one(ChunksView).chunks = chunks
+        self.query_one(ChunksView).update(chunks)
 
 
 class ChatView(Widget):
