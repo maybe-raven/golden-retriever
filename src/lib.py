@@ -2,7 +2,7 @@ import os
 from hashlib import sha1
 from os import path
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Generator, List, Optional, Tuple
 
 import lancedb
 from lancedb.embeddings import get_registry
@@ -49,8 +49,7 @@ class DBHandler:
         return chunks
 
     # Function to recursively traverse directories and process files
-    def process_files(self, root_dir: str | Path):
-        documents = []
+    def process_files(self, root_dir: str | Path) -> Generator[List[Documents]]:
         for dirpath, _, files in os.walk(root_dir):
             for filename in files:
                 if not (filename.endswith(".md") or filename.endswith(".txt")):
@@ -59,29 +58,26 @@ class DBHandler:
                 try:
                     with open(file_path, "r", encoding="utf-8") as file:
                         content = file.read().strip()
-                        doc_hash = hash_file(content)
-                        chunks = self.generate_chunks(content)
-                        documents.extend(
-                            [
-                                Documents(
-                                    hash=doc_hash,
-                                    path=file_path,
-                                    offset=offset,
-                                    text=text,
-                                )
-                                for (offset, text) in chunks
-                            ]
+                    doc_hash = hash_file(content)
+                    chunks = self.generate_chunks(content)
+                    yield [
+                        Documents(
+                            hash=doc_hash,
+                            path=file_path,
+                            offset=offset,
+                            text=text,
                         )
+                        for (offset, text) in chunks
+                    ]
                 except ValidationError as e:
                     raise e
                 except Exception as e:
                     print(f"Error processing {file_path}: {e}")
-        return documents
 
     # Process files and insert into the table
     async def embed_recursive(self, root_dir: str | Path):
         data = self.process_files(root_dir)
-        await self.table.add(data=data)
+        await self.table.add(data)
         await self.table.optimize()
         await self.table.create_index("text", config=FTS(with_position=False))
 
