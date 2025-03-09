@@ -49,10 +49,10 @@ class DocumentsListView(ListView):
         else:
             self.post_message(self.PathSelected(self.paths[self.index]))
 
-    def watch_paths(self, new_paths: List[Path]):
-        self.clear()
-        self.extend([ListItem(Label(os.path.basename(p))) for p in new_paths])
-        self.send_msg()
+    async def watch_paths(self, new_paths: List[Path]):
+        await self.clear()
+        await self.extend([ListItem(Label(os.path.basename(p))) for p in new_paths])
+        self.index = 0
 
     def watch_index(self, old_index: int | None, new_index: int | None):
         super().watch_index(old_index, new_index)
