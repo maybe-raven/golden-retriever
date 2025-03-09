@@ -3,6 +3,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Set, Tuple
 
+from openai import AsyncStream
+from openai.types.chat import ChatCompletionChunk
 from pandas import DataFrame, Series
 from rich.text import Text
 from textual import log, on, work
@@ -20,6 +22,7 @@ from textual.widgets import (
     Label,
     ListItem,
     ListView,
+    Markdown,
     RichLog,
     TabbedContent,
     Tabs,
@@ -27,7 +30,7 @@ from textual.widgets import (
 )
 from textual.widgets.tree import TreeNode
 
-from lib import DBHandler, get_all_files, hash_file
+from lib import DBHandler, GenAiModel, get_all_files, hash_file
 
 
 class DocumentsListView(ListView):
@@ -231,11 +234,36 @@ class RetrievalView(Widget):
         self.query_one(ChunksView).update(chunks)
 
 
+class ChatBox(Markdown):
+    message: str = ""
+
+    def append(self, delta: Optional[str]):
+        if not delta:
+            return
+        self.message += delta
+        self.update(self.message)
+
+
+class MessageListView(ListView):
+    @work(exclusive=True, group="receive_response")
+    async def receive_response(
+        self, response_stream: AsyncStream[ChatCompletionChunk], callback
+    ):
+        log("receiving streaming responses")
+        box = ChatBox()
+        await self.append(ListItem(box))
+        async for chunk in response_stream:
+            box.append(chunk.choices[0].delta.content)
+            self.scroll_end(animate=False)
+        self.refresh()
+        callback()
+
+
 class ChatView(Widget):
     def compose(self) -> ComposeResult:
         with Vertical():
-            yield ListView(classes="row top")
-            yield Input(classes="row bottom")
+            yield MessageListView(classes="row top")
+            yield Input(id="chat-input", classes="row bottom")
 
 
 class MainView(Widget):
@@ -458,7 +486,9 @@ class GRApp(App):
     ]
 
     db = DBHandler()
-    data: Optional[DataFrame] = None
+    ai = GenAiModel()
+    data = DataFrame()
+    is_generating = False
 
     @work(exclusive=True, group="embed")
     async def embed(self, paths: Set[Path]):
@@ -510,11 +540,24 @@ class GRApp(App):
 
     def action_retrieve(self):
         # pyright keeps complaining but it just works without problem???
-        self.push_screen(QueryModal(), callback=self.do_search)
+        self.push_screen(QueryModal(), callback=self.do_search)  # pyright: ignore
 
     def action_chat(self):
         box = self.query_one(Input)
         self.set_focus(box)
+
+    @on(Input.Submitted)
+    async def send_chat(self, event: Input.Submitted):
+        def cb():
+            self.is_generating = False
+
+        if self.is_generating or event.input.id != "chat-input":
+            return
+
+        self.is_generating = True
+        event.input.value = ""
+        response_stream = await self.ai.generateResponse(event.value, self.data)
+        self.query_one(MessageListView).receive_response(response_stream, cb)
 
     def compose(self) -> ComposeResult:
         yield Footer()

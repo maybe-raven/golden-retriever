@@ -3,13 +3,14 @@ import os
 from hashlib import sha1
 from os import path
 from pathlib import Path
-from typing import AsyncGenerator, Generator, Iterable, List, Optional, Tuple, Union
+from typing import AsyncGenerator, Generator, Iterable, List, Tuple, Union
 
 import lancedb
 from lancedb.embeddings import get_registry
 from lancedb.index import FTS, BTree
 from lancedb.pydantic import LanceModel, Vector
-from openai import OpenAI
+from openai import AsyncOpenAI, AsyncStream
+from openai.types.chat import ChatCompletionChunk
 from pandas import DataFrame
 from pydantic import ValidationError
 from textual import log
@@ -18,6 +19,21 @@ from textual import log
 os.environ.setdefault("OPENAI_API_KEY", "...")
 os.environ.setdefault("OPENAI_BASE_URL", "http://127.0.0.1:1234/v1")
 embeddings = get_registry().get("openai").create()
+
+RAG_PROMT = """## Task:
+Respond to the user query using the provided context, quote texts from context wherever appropriate.
+
+## Guidelines:
+- If you don't know the answer, clearly state that.
+- If uncertain, ask the user for clarification.
+- Quote text from the context to support each of your point if possible.
+- Respond in the same language as the user's query.
+- If the context clearly answers the user's query, quote from the context directly.
+- If the context is unreadable or of poor quality, inform the user and provide the best possible answer.
+- If the answer isn't present in the context but you possess the knowledge, explain this to the user and provide the answer using your own understanding.
+"""
+
+DEFAULT_PROMT = """You're an AI. Make fun of the user or something. Go crazy."""
 
 
 class Documents(LanceModel):
@@ -151,28 +167,37 @@ class GenAiModel:
     def __init__(self):
         self.model = os.environ.get("GR_MODEL", "llama-3.2-1b-instruct")
 
-        self.client = OpenAI(
+        self.client = AsyncOpenAI(
             base_url=os.environ.get("OPENAI_BASE_URL", "http://127.0.0.1:1234/v1"),
             api_key=os.environ.get("OPENAI_API_KEY", "..."),
         )
-        pass
 
-    def generateResponse(self, text: str) -> Optional[str]:
-        response = self.client.chat.completions.create(
+    async def generateResponse(
+        self, user_msg: str, context: DataFrame
+    ) -> AsyncStream[ChatCompletionChunk]:
+        if not context.empty:
+            context_texts = context.sort_values(by=["path", "offset"])["text"]
+            user_msg = f"""## Contexts
+            {"\n".join([f"### Citation {i}\n{c}\n" for i, c in enumerate(context_texts)])}
+
+            ## User Query
+            {user_msg}
+            """
+
+        return await self.client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
-                    "content": "You're helping me get information, specifically from a text that I will give you",
+                    "content": DEFAULT_PROMT if context.empty else RAG_PROMT,
                 },
                 {
                     "role": "user",
-                    "content": text,
+                    "content": user_msg,
                 },
             ],
+            stream=True,
             model=self.model,
-            # stream=Fal,
         )
-        return response.choices[0].message.content
 
 
 def hash_file(content: str) -> str:

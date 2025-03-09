@@ -33,3 +33,7 @@ GRApp TabbedContent {
         }
     }
 }
+
+ChatBox {
+    border: heavy green;
+}
