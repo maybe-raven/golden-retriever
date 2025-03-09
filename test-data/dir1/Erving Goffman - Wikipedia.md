@@ -10,6 +10,7 @@ Nationality|
   * Canadian
   * American
 
+lol get fucked
   
 Education| 
   * [University of Manitoba](https://en.wikipedia.org/wiki/</wiki/University_of_Manitoba> "University of Manitoba") ([BSc](https://en.wikipedia.org/wiki/</wiki/BSc> "BSc"))
