@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import ClassVar, Dict, List, Optional, Set, Tuple
 
 from openai import AsyncStream
-from openai.types.chat import ChatCompletionChunk
+from openai.types.chat import ChatCompletionChunk, ChatCompletionUserMessageParam
 from pandas import DataFrame, Series
 from rich.text import Text
 from textual import log, on, work
@@ -15,7 +15,7 @@ from textual.content import Content, Span
 from textual.message import Message
 from textual.reactive import reactive
 from textual.screen import ModalScreen
-from textual.widget import Widget
+from textual.widget import AwaitMount, Widget
 from textual.widgets import (
     Footer,
     Input,
@@ -235,9 +235,29 @@ class RetrievalView(Widget):
 
 
 class ChatBox(Markdown):
-    message: str = ""
+    def __init__(
+        self,
+        role: str,
+        markdown: str | None = None,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+    ):
+        super().__init__(
+            markdown,
+            name=name,
+            id=id,
+            classes=classes,
+            open_links=True,
+        )
+        self.role = role
+        self.message = markdown or ""
 
-    def append(self, delta: Optional[str]):
+    def on_mount(self) -> None:
+        log("ChatBox.on_mount")
+        self.border_title = self.role
+
+    def append_delta(self, delta: Optional[str]):
         if not delta:
             return
         self.message += delta
@@ -245,15 +265,26 @@ class ChatBox(Markdown):
 
 
 class MessageListView(ListView):
+    def get_messages(self) -> List[ChatCompletionUserMessageParam]:
+        ret = []
+        for child in self.children:
+            box = child.children[0]
+            assert isinstance(box, ChatBox)
+            ret.append({"role": box.role, "content": box.message})
+        return ret
+
+    def add_user_message(self, msg: str) -> AwaitMount:
+        return self.append(ListItem(ChatBox("user", msg)))
+
     @work(exclusive=True, group="receive_response")
     async def receive_response(
         self, response_stream: AsyncStream[ChatCompletionChunk], callback
     ):
         log("receiving streaming responses")
-        box = ChatBox()
+        box = ChatBox("assistant")
         await self.append(ListItem(box))
         async for chunk in response_stream:
-            box.append(chunk.choices[0].delta.content)
+            box.append_delta(chunk.choices[0].delta.content)
             self.scroll_end(animate=False)
         self.refresh()
         callback()
@@ -555,9 +586,14 @@ class GRApp(App):
             return
 
         self.is_generating = True
+        msg_list_view = self.query_one(MessageListView)
+        history = msg_list_view.get_messages()
+        msg_list_view.add_user_message(event.value)
         event.input.value = ""
-        response_stream = await self.ai.generateResponse(event.value, self.data)
-        self.query_one(MessageListView).receive_response(response_stream, cb)
+        response_stream = await self.ai.generateResponse(
+            event.value, self.data, history
+        )
+        msg_list_view.receive_response(response_stream, cb)
 
     def compose(self) -> ComposeResult:
         yield Footer()

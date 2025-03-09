@@ -10,7 +10,7 @@ from lancedb.embeddings import get_registry
 from lancedb.index import FTS, BTree
 from lancedb.pydantic import LanceModel, Vector
 from openai import AsyncOpenAI, AsyncStream
-from openai.types.chat import ChatCompletionChunk
+from openai.types.chat import ChatCompletionChunk, ChatCompletionUserMessageParam
 from pandas import DataFrame
 from pydantic import ValidationError
 from textual import log
@@ -173,7 +173,10 @@ class GenAiModel:
         )
 
     async def generateResponse(
-        self, user_msg: str, context: DataFrame
+        self,
+        user_msg: str,
+        context: DataFrame,
+        history: List[ChatCompletionUserMessageParam],
     ) -> AsyncStream[ChatCompletionChunk]:
         if not context.empty:
             context_texts = context.sort_values(by=["path", "offset"])["text"]
@@ -190,6 +193,7 @@ class GenAiModel:
                     "role": "system",
                     "content": DEFAULT_PROMT if context.empty else RAG_PROMT,
                 },
+                *history,
                 {
                     "role": "user",
                     "content": user_msg,
