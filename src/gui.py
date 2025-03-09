@@ -5,15 +5,24 @@ from pathlib import Path
 from typing import List, Optional
 
 from pandas import DataFrame
-from textual import work
+from textual import log, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Horizontal, Vertical
 from textual.content import Content, Span
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
-from textual.widgets import Footer, Label, ListItem, ListView, RichLog
+from textual.widgets import (
+    DirectoryTree,
+    Footer,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    RichLog,
+    TabbedContent,
+)
 
 from lib import DBHandler, hash_file
 
@@ -180,8 +189,8 @@ class RetrievalView(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal():
-            yield DocumentsListView(id="left", classes="column")
-            yield ChunksView(classes="column", id="right")
+            yield DocumentsListView(classes="column left")
+            yield ChunksView(classes="column right")
 
     def on_documents_list_view_path_selected(
         self, event: DocumentsListView.PathSelected
@@ -194,6 +203,40 @@ class RetrievalView(Widget):
             print(chunks)
         assert isinstance(chunks, Optional[DataFrame])
         self.query_one(ChunksView).chunks = chunks
+
+
+class ChatView(Widget):
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield ListView(classes="row top")
+            yield Input(classes="row bottom")
+
+
+class MainView(Widget):
+    def on_ready(self):
+        log(self.size)
+
+    def compose(self) -> ComposeResult:
+        with Horizontal():
+            yield DirectoryTree(".", classes="column left")
+            yield ChatView(classes="column right")
+
+
+class MyTabbedContent(TabbedContent):
+    DEFAULT_CSS = """
+    MyTabbedContent {
+        height: 100%;
+        &> ContentTabs {
+            dock: top;
+        }
+        &> ContentSwitcher {
+            height: 100%;
+        }
+        &> TabPane {
+            height: 100% !important;
+        }
+    }
+    """
 
 
 class GRApp(App):
@@ -231,7 +274,9 @@ class GRApp(App):
 
     def compose(self) -> ComposeResult:
         yield Footer()
-        yield RetrievalView()
+        with TabbedContent("Main", "Retrieval"):
+            yield MainView()
+            yield RetrievalView()
 
 
 def main():

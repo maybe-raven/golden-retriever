@@ -3,10 +3,33 @@
     border: double green;
 }
 
-#left {
+.left {
     width: 1fr;
 }
 
-#right {
-    width: 2fr;
+.right {
+    width: 3fr;
+}
+
+.row {
+    width: 100%;
+    border: heavy green;
+}
+
+.top {
+    height: 9fr;
+}
+
+.bottom {
+    height: 1fr;
+}
+
+GRApp TabbedContent {
+    height: 100%;
+    ContentSwitcher {
+        height: 100%;
+        TabPane {
+            height: 100%;
+        }
+    }
 }
