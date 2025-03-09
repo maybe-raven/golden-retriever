@@ -52,7 +52,9 @@ class DBHandler:
     async def connect(self):
         await self._lock.acquire()
         if not self.connected:
-            self.db = await lancedb.connect_async("~/.golden-retriever/lancedb")
+            self.db = await lancedb.connect_async(
+                path.expanduser("~/.golden-retriever/lancedb")
+            )
             self.table = await self.db.create_table(
                 "documents", schema=Documents, exist_ok=True
             )
