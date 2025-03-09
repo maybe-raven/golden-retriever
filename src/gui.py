@@ -454,9 +454,11 @@ class GRApp(App):
         ("q", "quit", "Quit"),
         ("ctrl+r", "retrieve", "Perform Retrieval"),
         ("ctrl+t", "clear", "Clear Retrieval"),
+        ("ctrl+g", "chat", "Focus Chatbox"),
     ]
 
     db = DBHandler()
+    data: Optional[DataFrame] = None
 
     @work(exclusive=True, group="embed")
     async def embed(self, paths: Set[Path]):
@@ -476,9 +478,9 @@ class GRApp(App):
         log("connecting to db for search")
         await self.db.connect()
         log("doing search..........")
-        result = await self.db.search(query)
-        log(result)
-        self.query_one(RetrievalView).data = result
+        self.data = await self.db.search(query)
+        log(self.data)
+        self.query_one(RetrievalView).data = self.data
 
     @work(exclusive=True, group="paths")
     async def check_paths(self):
@@ -509,6 +511,10 @@ class GRApp(App):
     def action_retrieve(self):
         # pyright keeps complaining but it just works without problem???
         self.push_screen(QueryModal(), callback=self.do_search)
+
+    def action_chat(self):
+        box = self.query_one(Input)
+        self.set_focus(box)
 
     def compose(self) -> ComposeResult:
         yield Footer()
