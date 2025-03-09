@@ -541,6 +541,9 @@ class GRApp(App):
         log("doing search..........")
         self.data = await self.db.search(query)
         log(self.data)
+        if self.data.empty:
+            self.notify("No results found.", timeout=3)
+            return
         self.query_one(RetrievalView).data = self.data
 
     @work(exclusive=True, group="paths")
