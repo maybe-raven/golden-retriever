@@ -23,6 +23,7 @@ from textual.widgets import (
     ListView,
     RichLog,
     TabbedContent,
+    Tabs,
     Tree,
 )
 from textual.widgets.tree import TreeNode
@@ -216,9 +217,6 @@ class ChatView(Widget):
 
 
 class MainView(Widget):
-    def on_ready(self):
-        log(self.size)
-
     def compose(self) -> ComposeResult:
         with Horizontal():
             yield CustomDirectoryTree(classes="column left")
@@ -421,6 +419,10 @@ class GRApp(App):
         args = parser.parse_args(sys.argv[1:])
         self.check_paths()
         self.do_search(args.query, args.embed_root_dir)
+
+        tabs_widget = self.query_one(Tabs)
+        tabs_widget._bindings.bind("h", "previous_tab", "Previous tab")
+        tabs_widget._bindings.bind("l", "next_tab", "Next tab")
 
     def compose(self) -> ComposeResult:
         yield Footer()
