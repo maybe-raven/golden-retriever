@@ -30,24 +30,3 @@ In her 2001 work _Measuring Up: How Advertising Affects Self-Image_ , Vickie Rut
   11. ^ [Jump up to: ](https://en.wikipedia.org/wiki/<#cite_ref-Goffman,_Erving_1979_11-0>) Goffman, Erving. Gender Advertisements. New York: Harper & Row, 1979. Print.
   12. [[2]](https://en.wikipedia.org/wiki/<http:/www.mediaed.org/discussion-guides/The-Codes-of-Gender.pdf>) "The Codes of Gender"
   13. ^ [Jump up to: ](https://en.wikipedia.org/wiki/<#cite_ref-VRS_13-0>) Rutledge Shields, Vickie (2001). [_Measuring Up: How Advertising Affects Self-Image_](https://en.wikipedia.org/wiki/<https:/books.google.com/books?id=Jpm4x1bNw7kC&q=%22Gender+Advertisements%22+Goffman&pg=PA35>). University of Pennsylvania Press. pp. 35–39. [ISBN](https://en.wikipedia.org/wiki/</wiki/ISBN_\(identifier\)> "ISBN \(identifier\)") [978-0-8122-3631-6](https://en.wikipedia.org/wiki/</wiki/Special:BookSources/978-0-8122-3631-6> "Special:BookSources/978-0-8122-3631-6"). Retrieved 12 December 2014.
-
-
-Retrieved from "[https://en.wikipedia.org/w/index.php?title=Gender_Advertisements&oldid=1221267491](https://en.wikipedia.org/wiki/<https:/en.wikipedia.org/w/index.php?title=Gender_Advertisements&oldid=1221267491>)"
-[Categories](https://en.wikipedia.org/wiki/</wiki/Help:Category> "Help:Category"): 
-  * [1979 non-fiction books](https://en.wikipedia.org/wiki/</wiki/Category:1979_non-fiction_books> "Category:1979 non-fiction books")
-  * [Sociology books](https://en.wikipedia.org/wiki/</wiki/Category:Sociology_books> "Category:Sociology books")
-  * [Books by Erving Goffman](https://en.wikipedia.org/wiki/</wiki/Category:Books_by_Erving_Goffman> "Category:Books by Erving Goffman")
-  * [Gender studies literature](https://en.wikipedia.org/wiki/</wiki/Category:Gender_studies_literature> "Category:Gender studies literature")
-  * [Non-fiction books about advertising](https://en.wikipedia.org/wiki/</wiki/Category:Non-fiction_books_about_advertising> "Category:Non-fiction books about advertising")
-
-
-Hidden categories: 
-  * [CS1 errors: missing periodical](https://en.wikipedia.org/wiki/</wiki/Category:CS1_errors:_missing_periodical> "Category:CS1 errors: missing periodical")
-  * [Webarchive template wayback links](https://en.wikipedia.org/wiki/</wiki/Category:Webarchive_template_wayback_links> "Category:Webarchive template wayback links")
-  * [Articles with short description](https://en.wikipedia.org/wiki/</wiki/Category:Articles_with_short_description> "Category:Articles with short description")
-  * [Short description matches Wikidata](https://en.wikipedia.org/wiki/</wiki/Category:Short_description_matches_Wikidata> "Category:Short description matches Wikidata")
-
-
-Search
-_Gender Advertisements_
-Add languages [ Add topic ](https://en.wikipedia.org/wiki/<#>)

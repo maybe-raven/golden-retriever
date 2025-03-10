@@ -258,13 +258,23 @@ CDTDataType = Tuple[Path, NodeState]
 class CustomDirectoryTree(Tree[CDTDataType]):
     selection: Set[Path] = set()
 
+    embedding_in_progress: reactive[bool] = reactive(
+        False, repaint=False, init=False, bindings=True
+    )
+
     BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("m", "embed_selected", "Embed Selected"),
         Binding("a", "toggle_all", "Select All"),
         Binding("space", "select_cursor", "Select"),
         Binding("enter", "toggle_node", "Toggle"),
         Binding("k", "cursor_up", "Cursor Up"),
         Binding("j", "cursor_down", "Cursor Down"),
     ]
+
+    class EmbedSelection(Message):
+        def __init__(self, paths: Set[Path]) -> None:
+            super().__init__()
+            self.paths = paths
 
     def __init__(
         self,
@@ -290,7 +300,7 @@ class CustomDirectoryTree(Tree[CDTDataType]):
         assert isinstance(hashes, Series)
 
         root_path = Path.cwd()
-        nodes: Dict[Path, TreeNode] = {root_path: self.root}
+        self.nodes_dict: Dict[Path, TreeNode] = {root_path: self.root}
 
         for file in sorted(files):
             file_path = Path(file)
@@ -299,14 +309,14 @@ class CustomDirectoryTree(Tree[CDTDataType]):
 
             for part in relative_path.parts:
                 current = parent / part
-                if current not in nodes:
-                    nodes[current] = nodes[parent].add(
+                if current not in self.nodes_dict:
+                    self.nodes_dict[current] = self.nodes_dict[parent].add(
                         part, expand=not part.startswith(".")
                     )
                 parent = current
 
             state = self.check_state(file, hashes)
-            node = nodes[file_path]
+            node = self.nodes_dict[file_path]
             node.data = (file_path, state)  # Store the absolute path
             node.set_label(Text(file_path.name, style=str(state)))
             node.allow_expand = False
@@ -336,10 +346,34 @@ class CustomDirectoryTree(Tree[CDTDataType]):
         else:
             return NodeState.DIRTY
 
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "embed_selected":
+            return None if self.embedding_in_progress else True
+        else:
+            return super().check_action(action, parameters)
+
+    def mark_path_as_embedded(self, p: Path):
+        node = self.nodes_dict[p]
+        node.data = (p, NodeState.CLEAN)
+        if isinstance(node.label, str):
+            node.set_label(Text(node.label, style=str(NodeState.CLEAN)))
+        else:
+            node.label.style = str(NodeState.CLEAN)
+        node.refresh()
+
+    def action_embed_selected(self):
+        if self.embedding_in_progress:
+            return
+        self.embedding_in_progress = True
+        self.post_message(self.EmbedSelection(self.selection))
+
     def action_toggle_all(self):
         self.toggle_selection(self.root)
 
     def toggle_selection(self, node: TreeNode[Tuple[Path, NodeState]]):
+        if self.embedding_in_progress:
+            return
+
         if len(node.children) == 0:
             assert node.data is not None, "all leaf nodes should have a path"
             path, state = node.data
@@ -356,9 +390,9 @@ class CustomDirectoryTree(Tree[CDTDataType]):
             else:
                 self.selection.add(path)
                 if isinstance(node.label, str):
-                    node.set_label(Text(node.label, style=str(NodeState.CLEAN)))
+                    node.set_label(Text(node.label, style="yellow"))
                 else:
-                    node.label.style = str(NodeState.CLEAN)
+                    node.label.style = "yellow"
 
             node.refresh()
         else:
@@ -379,13 +413,24 @@ class GRApp(App):
 
     db = DBHandler()
 
+    @work(exclusive=True, group="embed")
+    async def embed(self, paths: Set[Path]):
+        log("doing embedding", paths=paths)
+        tree = self.query_one(CustomDirectoryTree)
+        async for p in self.db.embed_files(paths):
+            tree.mark_path_as_embedded(Path(p))
+        log("done embedding", paths=paths)
+        await self.check_paths().wait()
+        tree.embedding_in_progress = False
+
     @work(exclusive=True, group="search")
     async def do_search(self, query: str, embed_root_dir: Optional[Path]):
         log("connecting to db for search")
         await self.db.connect()
 
         if embed_root_dir is not None:
-            await self.db.embed_recursive(embed_root_dir)
+            async for _ in self.db.embed_files(get_all_files(embed_root_dir)):
+                pass
         log("doing search..........")
         result = await self.db.search(query)
         log(result)
@@ -393,6 +438,7 @@ class GRApp(App):
 
     @work(exclusive=True, group="paths")
     async def check_paths(self):
+        log("checking paths")
         await self.db.connect()
         paths = list(get_all_files("."))
         results = await self.db.check_paths(paths)
@@ -423,6 +469,11 @@ class GRApp(App):
         tabs_widget = self.query_one(Tabs)
         tabs_widget._bindings.bind("h", "previous_tab", "Previous tab")
         tabs_widget._bindings.bind("l", "next_tab", "Next tab")
+
+    async def on_custom_directory_tree_embed_selection(
+        self, event: CustomDirectoryTree.EmbedSelection
+    ):
+        self.embed(event.paths)
 
     def compose(self) -> ComposeResult:
         yield Footer()

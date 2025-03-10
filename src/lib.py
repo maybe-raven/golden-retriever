@@ -3,15 +3,16 @@ import os
 from hashlib import sha1
 from os import path
 from pathlib import Path
-from typing import Generator, Iterable, List, Optional, Tuple
+from typing import AsyncGenerator, Generator, Iterable, List, Optional, Tuple, Union
 
 import lancedb
 from lancedb.embeddings import get_registry
-from lancedb.index import FTS
+from lancedb.index import FTS, BTree
 from lancedb.pydantic import LanceModel, Vector
 from openai import OpenAI
 from pandas import DataFrame
 from pydantic import ValidationError
+from textual import log
 
 # Configuring the environment variable OPENAI_API_KEY
 os.environ.setdefault("OPENAI_API_KEY", "...")
@@ -42,6 +43,11 @@ class DBHandler:
             self.connected = True
         self._lock.release()
 
+    async def create_indices(self):
+        log("creating indices...")
+        await self.table.create_index("text", config=FTS(with_position=False))
+        await self.table.create_index("path", config=BTree())
+
     # Function to generate overlapping chunks from text
     def generate_chunks(
         self, text: str, chunk_size: int = 1000, overlap: int = 100
@@ -58,39 +64,50 @@ class DBHandler:
         return chunks
 
     # Function to recursively traverse directories and process files
-    def process_files(self, root_dir: str | Path) -> Generator[List[Documents]]:
-        for file_path in get_all_files(root_dir):
+    def process_files(
+        self, files: Iterable[Union[Path, str]]
+    ) -> Generator[Tuple[str, List[Documents]]]:
+        for file_path in files:
             try:
                 with open(file_path, "r", encoding="utf-8") as file:
                     content = file.read().strip()
                 doc_hash = hash_file(content)
                 chunks = self.generate_chunks(content)
-                yield [
-                    Documents(
-                        hash=doc_hash,
-                        path=file_path,
-                        offset=offset,
-                        text=text,
-                    )
-                    for (offset, text) in chunks
-                ]
+                yield (
+                    str(file_path),
+                    [
+                        Documents(
+                            hash=doc_hash,
+                            path=str(file_path),
+                            offset=offset,
+                            text=text,
+                        )
+                        for (offset, text) in chunks
+                    ],
+                )
             except ValidationError as e:
                 raise e
             except Exception as e:
                 print(f"Error processing {file_path}: {e}")
 
-    # Process files and insert into the table
-    async def embed_recursive(self, root_dir: str | Path):
+    async def embed_files(
+        self, paths: Iterable[Union[Path, str]]
+    ) -> AsyncGenerator[str]:
+        log("embedding files: waiting for lock")
         await self._lock.acquire()
-        data = self.process_files(root_dir)
-        await self.table.add(data)
+        log("manual upinserting...")
+        for p, documents in self.process_files(paths):
+            await self.table.delete(f"path = '{escape(p)}'")
+            await self.table.add(documents)
+            yield p
+        log("optimizing...")
         await self.table.optimize()
-        await self.table.create_index("text", config=FTS(with_position=False))
+        await self.create_indices()
         self._lock.release()
+        log("embedding done...")
 
     async def check_paths(self, paths: Iterable[str]) -> DataFrame:
-        paths = f"({', '.join(f"'{p.replace("'", r"''")}'" for p in paths)})"
-        print(paths)
+        paths = f"({', '.join(f"'{escape(p)}'" for p in paths)})"
         await self._lock.acquire()
         data = await (
             self.table.query()
@@ -105,8 +122,13 @@ class DBHandler:
         return data
 
     async def search(self, query: str) -> DataFrame:
+        log("searching: waiting for lock")
         await self._lock.acquire()
+        if not query or await self.table.count_rows() == 0:
+            return DataFrame()
+        log("searching: computing query embeddings...")
         vector_query = embeddings.compute_query_embeddings(query)[0]
+        log("searching...")
         data = await (
             self.table.query()
             .nearest_to(vector_query)
@@ -114,10 +136,14 @@ class DBHandler:
             .rerank()
             # .rerank(CrossEncoderReranker(trust_remote_code=False))
             # WTF!!! ^^^this single line breaks Textual's input
+            .select(["path", "hash", "offset", "text"])
             .limit(10)
             .to_pandas()
         )
         self._lock.release()
+        log("searching: post-processing...")
+        assert isinstance(data, DataFrame)
+        data.drop_duplicates(["path", "hash", "offset", "text"], inplace=True)
         return data
 
 
@@ -160,3 +186,7 @@ def get_all_files(root_dir: str | Path) -> Generator[str]:
             if not (filename.endswith(".md") or filename.endswith(".txt")):
                 continue
             yield path.abspath(path.join(dirpath, filename))
+
+
+def escape(s: str) -> str:
+    return s.replace("'", r"''")
