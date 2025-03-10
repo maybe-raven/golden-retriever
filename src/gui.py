@@ -2,9 +2,10 @@ import os
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
-from pandas import DataFrame
+from pandas import DataFrame, Series
+from rich.text import Text
 from textual import log, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -14,7 +15,6 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import (
-    DirectoryTree,
     Footer,
     Input,
     Label,
@@ -22,9 +22,11 @@ from textual.widgets import (
     ListView,
     RichLog,
     TabbedContent,
+    Tree,
 )
+from textual.widgets.tree import TreeNode
 
-from lib import DBHandler, hash_file
+from lib import DBHandler, get_all_files, hash_file
 
 
 class DocumentsListView(ListView):
@@ -218,40 +220,116 @@ class MainView(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal():
-            yield DirectoryTree(".", classes="column left")
+            yield CustomDirectoryTree(".", classes="column left")
             yield ChatView(classes="column right")
 
 
-class MyTabbedContent(TabbedContent):
-    DEFAULT_CSS = """
-    MyTabbedContent {
-        height: 100%;
-        &> ContentTabs {
-            dock: top;
-        }
-        &> ContentSwitcher {
-            height: 100%;
-        }
-        &> TabPane {
-            height: 100% !important;
-        }
-    }
+class StagingData:
+    files: List[str]
     """
+    The absolute paths of files to display in the directory tree.
+    They are all assumed to be descendants of the current working directory.
+    """
+
+    hashes: DataFrame
+    """
+    A dataframe that contains two columns: path and hash.
+    The hash is used to check if the file has changed.
+    """
+
+    def __init__(self, files: List[str], hashes: DataFrame):
+        self.files = files
+        self.hashes = hashes
+
+
+class CustomDirectoryTree(Tree[str]):
+    staging_data: reactive[Optional[StagingData]] = reactive(None)
+
+    def build_tree(self, data: StagingData):
+        self.clear()
+        self.root.expand()
+
+        files = data.files
+        hashes = data.hashes.set_index("path")["hash"]
+        assert isinstance(hashes, Series)
+
+        root_path = Path.cwd()
+        nodes: Dict[Path, TreeNode] = {root_path: self.root}
+
+        for file in sorted(files):
+            file_path = Path(file)
+            relative_path = file_path.relative_to(root_path)
+            parent = root_path
+
+            for part in relative_path.parts:
+                current = parent / part
+                if current not in nodes:
+                    nodes[current] = nodes[parent].add(
+                        part, expand=not part.startswith(".")
+                    )
+                parent = current
+
+            node = nodes[file_path]
+            node.data = file_path  # Store the absolute path
+            node.set_label(self.format_label(file_path, hashes))
+            node.allow_expand = False
+
+    def format_label(self, path: Path, hashes: Series) -> Text:
+        """Formats the label with color based on hash comparison."""
+        file_path = str(path)
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        computed_hash = hash_file(content)
+        stored_hashes = hashes[hashes.index == file_path]
+        assert isinstance(stored_hashes, Series)
+
+        log(
+            {
+                "path": file_path,
+                "computed_hash": computed_hash,
+                "nunique": stored_hashes.nunique(),
+                "stored_hash": stored_hashes.iloc[0] if file_path in hashes else None,
+            }
+        )
+
+        if file_path not in hashes:
+            color = ""
+        elif stored_hashes.nunique() > 1:
+            color = "purple"
+        elif stored_hashes.iloc[0] == computed_hash:
+            color = "green"
+        else:
+            color = "red"
+
+        return Text(path.name, style=color)
 
 
 class GRApp(App):
     CSS_PATH = "gui.tcss"
     BINDINGS = [("q", "quit", "Quit")]
 
-    @work(exclusive=True)
+    db = DBHandler()
+
+    @work(exclusive=True, group="search")
     async def do_search(self, query: str, embed_root_dir: Optional[Path]):
-        db = DBHandler()
-        await db.connect()
+        log("connecting to db for search")
+        await self.db.connect()
 
         if embed_root_dir is not None:
-            await db.embed_recursive(embed_root_dir)
-        result = await db.search(query)
+            await self.db.embed_recursive(embed_root_dir)
+        log("doing search..........")
+        result = await self.db.search(query)
+        log(result)
         self.query_one(RetrievalView).data = result
+
+    @work(exclusive=True, group="paths")
+    async def check_paths(self):
+        await self.db.connect()
+        paths = list(get_all_files("."))
+        results = await self.db.check_paths(paths)
+        for _, item in results.iterrows():
+            log({"path": item.iloc[0], "hash": item.iloc[1]})
+        self.query_one(CustomDirectoryTree).build_tree(StagingData(paths, results))
 
     async def on_mount(self):
         parser = ArgumentParser(description="Golden Retriever")
@@ -270,6 +348,7 @@ class GRApp(App):
             ),
         )
         args = parser.parse_args(sys.argv[1:])
+        self.check_paths()
         self.do_search(args.query, args.embed_root_dir)
 
     def compose(self) -> ComposeResult:
