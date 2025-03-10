@@ -1,14 +1,15 @@
 import os
 import sys
 from argparse import ArgumentParser
+from enum import StrEnum
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import ClassVar, Dict, List, Optional, Set, Tuple
 
 from pandas import DataFrame, Series
 from rich.text import Text
 from textual import log, work
 from textual.app import App, ComposeResult
-from textual.binding import Binding
+from textual.binding import Binding, BindingType
 from textual.containers import Horizontal, Vertical
 from textual.content import Content, Span
 from textual.message import Message
@@ -220,7 +221,7 @@ class MainView(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal():
-            yield CustomDirectoryTree(".", classes="column left")
+            yield CustomDirectoryTree(classes="column left")
             yield ChatView(classes="column right")
 
 
@@ -242,11 +243,48 @@ class StagingData:
         self.hashes = hashes
 
 
-class CustomDirectoryTree(Tree[str]):
-    staging_data: reactive[Optional[StagingData]] = reactive(None)
+class NodeState(StrEnum):
+    UNEMBEDDED = ""
+    """File that have not been embedded."""
+    CLEAN = "green"
+    """File that have been embedded and have not changed since."""
+    DIRTY = "red"
+    """File that have been embedded but have changed since."""
+    MULTI = "purple"
+    """This file has been embedded multiple times."""
+
+
+CDTDataType = Tuple[Path, NodeState]
+
+
+class CustomDirectoryTree(Tree[CDTDataType]):
+    selection: Set[Path] = set()
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("a", "toggle_all", "Select All"),
+        Binding("space", "select_cursor", "Select"),
+        Binding("enter", "toggle_node", "Toggle"),
+        Binding("k", "cursor_up", "Cursor Up"),
+        Binding("j", "cursor_down", "Cursor Down"),
+    ]
+
+    def __init__(
+        self,
+        *,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        super().__init__(
+            ".", None, name=name, id=id, classes=classes, disabled=disabled
+        )
+        self.show_root = False
+        self.auto_expand = False
 
     def build_tree(self, data: StagingData):
         self.clear()
+        self.selection.clear()
         self.root.expand()
 
         files = data.files
@@ -269,14 +307,13 @@ class CustomDirectoryTree(Tree[str]):
                     )
                 parent = current
 
+            state = self.check_state(file, hashes)
             node = nodes[file_path]
-            node.data = file_path  # Store the absolute path
-            node.set_label(self.format_label(file_path, hashes))
+            node.data = (file_path, state)  # Store the absolute path
+            node.set_label(Text(file_path.name, style=str(state)))
             node.allow_expand = False
 
-    def format_label(self, path: Path, hashes: Series) -> Text:
-        """Formats the label with color based on hash comparison."""
-        file_path = str(path)
+    def check_state(self, file_path: str, hashes: Series) -> NodeState:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read().strip()
         computed_hash = hash_file(content)
@@ -293,15 +330,49 @@ class CustomDirectoryTree(Tree[str]):
         )
 
         if file_path not in hashes:
-            color = ""
+            return NodeState.UNEMBEDDED
         elif stored_hashes.nunique() > 1:
-            color = "purple"
+            return NodeState.MULTI
         elif stored_hashes.iloc[0] == computed_hash:
-            color = "green"
+            return NodeState.CLEAN
         else:
-            color = "red"
+            return NodeState.DIRTY
 
-        return Text(path.name, style=color)
+    def action_toggle_all(self):
+        self.toggle_selection(self.root)
+
+    def toggle_selection(self, node: TreeNode[Tuple[Path, NodeState]]):
+        if len(node.children) == 0:
+            assert node.data is not None, "all leaf nodes should have a path"
+            path, state = node.data
+            if state == NodeState.CLEAN:
+                # don't support re-embedding clean files atm.
+                return
+
+            if path in self.selection:
+                self.selection.remove(path)
+                if isinstance(node.label, str):
+                    node.set_label(Text(node.label, style=str(state)))
+                else:
+                    node.label.style = str(state)
+            else:
+                self.selection.add(path)
+                if isinstance(node.label, str):
+                    node.set_label(Text(node.label, style=str(NodeState.CLEAN)))
+                else:
+                    node.label.style = str(NodeState.CLEAN)
+
+            node.refresh()
+        else:
+            for child in node.children:
+                self.toggle_selection(child)
+
+    def action_select_cursor(self) -> None:
+        super().action_select_cursor()
+        if self.cursor_node is None:
+            return
+        self.toggle_selection(self.cursor_node)
+        log(node=self.cursor_node, selection=self.selection)
 
 
 class GRApp(App):
