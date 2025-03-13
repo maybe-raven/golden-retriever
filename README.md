@@ -2,7 +2,7 @@
 
 A simple TUI application for a more transparent, on-device RAG pipeline.
 
-
+https://github.com/user-attachments/assets/e8c68937-8c12-4cdf-8ed2-1ec47193e98b
 
 # To Run
 
